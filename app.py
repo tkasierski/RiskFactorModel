@@ -25,6 +25,7 @@ from factor_risk_analysis.data import (
     read_spreadsheet_preview,
     uploaded_returns_to_series,
 )
+from factor_risk_analysis.enhancements import enhance_workbook
 from factor_risk_analysis.processing import align_analysis_data, quick_summary
 from factor_risk_analysis.workbook import WorkbookSettings, create_workbook
 
@@ -203,6 +204,7 @@ def main() -> None:
             )
 
             workbook_bytes = create_workbook(aligned, settings)
+            workbook_bytes = enhance_workbook(workbook_bytes)
             workbook_bytes = add_dropped_month_audit(workbook_bytes, alignment.dropped_details)
         except DataError as exc:
             st.error(str(exc))
