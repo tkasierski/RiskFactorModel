@@ -6,6 +6,7 @@ from io import BytesIO
 import pandas as pd
 import streamlit as st
 
+from factor_risk_analysis.audit import add_dropped_month_audit
 from factor_risk_analysis.config import (
     DEFAULT_CRISIS_THRESHOLD,
     DEFAULT_CRISIS_TICKER,
@@ -20,6 +21,7 @@ from factor_risk_analysis.data import (
     file_suffix,
     guess_date_column,
     guess_return_column,
+    latest_completed_month_end,
     read_spreadsheet_preview,
     uploaded_returns_to_series,
 )
@@ -118,6 +120,9 @@ def main() -> None:
         st.error("Start date must be before end date.")
         return
 
+    completed_month = latest_completed_month_end(end_date)
+    st.sidebar.caption(f"Latest completed month included: {completed_month.strftime('%Y-%m-%d')}")
+
     risk_free_pct = st.sidebar.number_input("Annual risk-free rate (%)", min_value=-10.0, max_value=50.0, value=0.0, step=0.25, format="%.2f")
     risk_free_rate = risk_free_pct / 100.0
 
@@ -172,7 +177,12 @@ def main() -> None:
             if benchmark_ticker:
                 benchmark_returns, _ = cached_public_returns(benchmark_ticker, "total_return", start_date, end_date)
 
-            alignment = align_analysis_data(fund_returns, factor_frame, benchmark_returns)
+            alignment = align_analysis_data(
+                fund_returns,
+                factor_frame,
+                benchmark_returns,
+                crisis_threshold=float(crisis_threshold),
+            )
             aligned = alignment.data
 
             settings = WorkbookSettings(
@@ -193,6 +203,7 @@ def main() -> None:
             )
 
             workbook_bytes = create_workbook(aligned, settings)
+            workbook_bytes = add_dropped_month_audit(workbook_bytes, alignment.dropped_details)
         except DataError as exc:
             st.error(str(exc))
             return
@@ -213,6 +224,12 @@ def main() -> None:
     if alignment.warnings:
         for warning in alignment.warnings:
             st.warning(warning)
+
+    if not alignment.dropped_details.empty:
+        with st.expander("Dropped month details"):
+            dropped_display = alignment.dropped_details.copy()
+            dropped_display["Date"] = pd.to_datetime(dropped_display["Date"]).dt.strftime("%Y-%m-%d")
+            st.dataframe(dropped_display, use_container_width=True)
 
     safe_name = (fund_name or "factor_risk_analysis").replace("/", "_").replace("\\", "_").replace(" ", "_")
     st.download_button(
