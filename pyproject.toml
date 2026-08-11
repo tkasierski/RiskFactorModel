@@ -1,0 +1,9 @@
+[project]
+name = "factor-risk-analysis"
+version = "0.1.0"
+description = "Streamlit app for conditional factor risk regression and auditable Excel output."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
