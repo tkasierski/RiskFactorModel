@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from io import BytesIO
 from pathlib import Path
 from typing import BinaryIO, Iterable
@@ -32,6 +32,30 @@ def _as_timestamp(value: date | datetime | str | pd.Timestamp) -> pd.Timestamp:
     if pd.isna(ts):
         raise DataError(f"Invalid date: {value!r}")
     return ts.normalize()
+
+
+def latest_completed_month_end(
+    end: date | datetime | str | pd.Timestamp,
+    today: date | datetime | str | pd.Timestamp | None = None,
+) -> pd.Timestamp:
+    """Return the latest fully completed calendar month allowed by ``end``.
+
+    Monthly analysis should never use a partial current month. If the requested
+    end date itself falls before that month's calendar month-end, the prior
+    month is the latest complete month for that requested range.
+    """
+
+    requested_end = _as_timestamp(end)
+    requested_period = requested_end.to_period("M")
+    requested_month_end = requested_period.to_timestamp("M")
+    if requested_end < requested_month_end:
+        requested_complete = (requested_period - 1).to_timestamp("M")
+    else:
+        requested_complete = requested_month_end
+
+    today_ts = _as_timestamp(today if today is not None else pd.Timestamp.today())
+    last_completed_current = (today_ts.to_period("M") - 1).to_timestamp("M")
+    return min(requested_complete, last_completed_current)
 
 
 def _download_start_for_returns(start: date | datetime | str | pd.Timestamp) -> pd.Timestamp:
@@ -124,14 +148,14 @@ def monthly_returns_from_history(
     start: date | datetime | str | pd.Timestamp,
     end: date | datetime | str | pd.Timestamp,
 ) -> pd.Series:
-    """Calculate month-end returns from daily Yahoo Finance data."""
+    """Calculate returns using fully completed calendar months only."""
 
     price_col = _price_column_for_method(history, method)
     monthly_values = month_end_series_from_daily(history, price_col)
     returns = monthly_values.pct_change().dropna()
 
     start_month = _as_timestamp(start).to_period("M").to_timestamp("M")
-    end_month = _as_timestamp(end).to_period("M").to_timestamp("M")
+    end_month = latest_completed_month_end(end)
     returns = returns.loc[(returns.index >= start_month) & (returns.index <= end_month)]
     return returns.astype(float)
 
@@ -162,7 +186,7 @@ def download_month_end_level(
     value_col = "Close" if "Close" in history.columns else _price_column_for_method(history, "pct_change")
     levels = month_end_series_from_daily(history, value_col)
     start_month = _as_timestamp(start).to_period("M").to_timestamp("M")
-    end_month = _as_timestamp(end).to_period("M").to_timestamp("M")
+    end_month = latest_completed_month_end(end)
     levels = levels.loc[(levels.index >= start_month) & (levels.index <= end_month)]
     meta = MarketSeriesMeta(
         ticker=ticker,
@@ -320,10 +344,10 @@ def uploaded_returns_to_series(
     series = normalize_to_month_end(series)
 
     start_month = _as_timestamp(start).to_period("M").to_timestamp("M")
-    end_month = _as_timestamp(end).to_period("M").to_timestamp("M")
+    end_month = latest_completed_month_end(end)
     series = series.loc[(series.index >= start_month) & (series.index <= end_month)]
     if series.empty:
-        raise DataError("No uploaded return observations fall inside the selected date range.")
+        raise DataError("No uploaded return observations fall inside the selected date range after excluding incomplete calendar months.")
     return series, scale_method
 
 
