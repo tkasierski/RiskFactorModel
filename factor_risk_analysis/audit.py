@@ -9,6 +9,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import Border, Font, PatternFill, Side
 
 from .config import SHEET_DIAGNOSTICS
+from .credit_guidance import clarify_credit_factor
 
 HEADER_FILL = "1F4E78"
 THIN_GRAY = Side(style="thin", color="D9E2F3")
@@ -16,13 +17,14 @@ DATE_FMT = "mmm-yy"
 
 
 def add_dropped_month_audit(workbook_bytes: bytes, dropped_details: pd.DataFrame) -> bytes:
-    """Append an explicit dropped-month table to the Diagnostics worksheet."""
+    """Apply credit-factor guidance, then append an explicit dropped-month table."""
 
+    workbook_bytes = clarify_credit_factor(workbook_bytes)
     wb = load_workbook(BytesIO(workbook_bytes))
     ws = wb[SHEET_DIAGNOSTICS]
 
-    # Keep this section below the existing warning block while leaving room for
-    # several warning rows. This avoids changing any existing formula locations.
+    # Keep this section below the existing warning/guidance blocks while leaving
+    # room for variable-length explanatory content.
     start_row = max(45, ws.max_row + 3)
     ws.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=4)
     title = ws.cell(start_row, 1, "Dropped Month Detail")
