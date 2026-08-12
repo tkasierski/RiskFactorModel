@@ -35,7 +35,11 @@ DEFAULT_FACTORS: tuple[FactorDefinition, ...] = (
         name="Credit",
         ticker="HYG",
         method="total_return",
-        description="Credit risk; iShares iBoxx $ High Yield Corporate Bond ETF monthly total return.",
+        description=(
+            "High-yield credit-market risk proxy; iShares iBoxx $ High Yield Corporate Bond ETF monthly total return. "
+            "A positive beta means the fund tends to participate with HYG, so HYG weakness is expected to hurt the fund, "
+            "all else equal. This is not a pure credit-spread beta because HYG also reflects rates/duration, carry and liquidity."
+        ),
     ),
     FactorDefinition(
         name="Volatility",
